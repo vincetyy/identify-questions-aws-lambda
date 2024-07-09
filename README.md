@@ -1,10 +1,12 @@
-# identify-questions-aws-lambda
-Deploying a ML model onto AWS Lambda using FastAPI and Docker
+# Deploying an ML Model onto AWS Lambda using FastAPI and Docker
 
-1) Using FastAPI and Mangum in app.py
-Here, the function predict is linked to the POST endpoint "/predict".
+This guide walks you through deploying a machine learning model onto AWS Lambda using FastAPI and Docker.
 
-```
+## 1. Using FastAPI and Mangum in `app.py`
+
+First, create a FastAPI application and link the `predict` function to the POST endpoint `/predict`.
+
+```py
 @app.post("/predict")
 def predict(request: PredictionRequest):
     try:
@@ -25,17 +27,17 @@ def predict(request: PredictionRequest):
 
 You can use uvicorn to run the app locally, but you need to use Mangum in order to host on AWS Lambda
 
-```
+```py
 app = FastAPI()
 handler = Mangum(app)
 ```
 
 
-2) Preparing the Dockerfile
-Choose the correct base image, which in this case is python:3.12
-Make sure to copy any files or folders you need to run app.py
+## 2. Preparing the Dockerfile
+Choose the correct base image, which in this case is `python:3.12`.
+Make sure to copy any files or folders you need to run `app.py`
 
-```
+```dockerfile
 # Specifies the base image to use for building your Docker container
 FROM public.ecr.aws/lambda/python:3.12
 
@@ -55,13 +57,22 @@ COPY app.py ${LAMBDA_TASK_ROOT}
 CMD [ "app.handler" ]
 ```
 
-3) Dockerizing the app and pushing to ECR
-Install AWS CLI and Docker if you have not done so
-Run ```aws configure```. You can set up a IAM user under IAM on the AWS Cloud Console, but I was lazy and just used a root user access key which is not recommended (Username in top right > Security credentials > Access keys > Create access key).
+## 3. Dockerizing the app and pushing to ECR
+### Prerequisites
 
-Once you have set it up, navigate to Elastic Container Registry on AWS Cloud Console. Make sure that your region in the top right is set as Singapore (ap-southeast-1) and create a repository. Choose your repository name. 
-Click on the repository, and follow the commands under 'View push commands'. The commands should be as follows:
+- Install AWS CLI and Docker.
+- Configure AWS CLI:
+```bash
+aws configure
 ```
+You can set up a IAM user under IAM on the AWS Cloud Console, but I was lazy and just used a root user access key which is not recommended (Username in top right > Security credentials > Access keys > Create access key).
+
+### Steps
+
+1. Navigate to Elastic Container Registry (ECR) on AWS Cloud Console.
+2. Ensure your region in the top right is set to Singapore (`ap-southeast-1`).
+3. Create a repository and follow the push commands provided. The commands should be as follows:
+```bash
 # Retrieve an authentication token and authenticate your Docker client to your registry. Use the AWS CLI:
 # Note: If you receive an error using the AWS CLI, make sure that you have the latest version of the AWS CLI and Docker installed.
 aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin <YOUR-AWS-ACCOUNT-ID>.dkr.ecr.ap-southeast-1.amazonaws.com
@@ -78,11 +89,15 @@ docker push <YOUR-AWS-ACCOUNT-ID>.dkr.ecr.us-east-1.amazonaws.com/<REPOSITORY-NA
 Once you are done, you should see the image in the repository on ECR. 
 If want to make changes to your app, follow the same commands again to push the new image.
 
-4) Setting up Lambda 
-Navigate to Lambda on AWS Cloud Console and select 'Create function'. Choose 'Container image' and name your function. Click 'Browse images' and choose the image that you pushed in the previous step. 
-Once the function is created, navigate to 'Configuration' > 'General configuration' and  increase the memory to 256 MB and timeout to 15 sec. You may need to increase these for more complex models.
-Next, navigate to 'Test' and use the following json to test the API
-```
+## 4. Setting up Lambda 
+1. Navigate to Lambda on AWS Cloud Console and select `Create function`.
+2. Choose `Container image` and name your function.
+3. Browse images and select the image you pushed earlier.
+4. Update `General configuration` under `Configuration` (increase if necessary for more complex models):
+    - Set `memory` to `256 MB`.
+    - Set `timeout` to `15 sec`.
+5. Test the API with the following JSON:
+```json
 {
   "resource": "/{proxy+}",
   "path": "/predict",
@@ -100,16 +115,23 @@ Next, navigate to 'Test' and use the following json to test the API
 ```
 The function should execute successfully and return a json with the prediction.
 
-Go back to 'Configuration' > 'Function URL' and click 'Create function URL'. Choose 'Auth type' to be 'NONE', and tick 'Configure cross-origin resource sharing (CORS)' under 'Additional settings'.
-Once the function URL is generated, you can use your API now!
-Use Postman to 'POST' to 'https://<YOUR-FUNCTION-URL>/predict' with the following body
-```
+## 5. Creating the function URL
+Go to `Configuration` and create a function URL under `Function URL`
+- Set `Auth type` to `NONE`
+- Enable cross-origin resource sharing (CORS) under `Additional settings`
+
+## 6. Testing the Deployed API
+Use Postman to test the deployed API:
+1. Set the request type to `POST`
+2. Use the URL: `https://<YOUR-FUNCTION-URL>/predict`.
+3. Set the request body to:
+```json
 {
     "text": "is this a question"
 }
 ```
-It should return
-```
+The response should be
+```json
 {
     "prediction": "Question"
 }
